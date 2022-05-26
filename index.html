@@ -1,12 +1,12 @@
-<!DOCTYPE HTML>
+﻿<!DOCTYPE HTML>
 <script>
 
-A = new AudioContext,
-m = A.createBuffer(1, 1e6, 44100);
+
+A = new AudioContext;
 
 // Play a piano note
 piano = e => {
-  var V, v, p, c, b, w, r, D, i, s, u, D;
+  var V, v, p, c, b, w, r, D, i, s, u, D, m = A.createBuffer(1, 1e6, 44100);
   
   for(
   
@@ -55,23 +55,26 @@ piano = e => {
 
 currnote = 0;
 
-play_note = i => {
-  piano(440*1.06**(i - 80));
+play_note = (i, delay) => {
+  setTimeout(()=>piano(440*1.06**(i - 80)), delay);
 }
 
 play = (i) => {
-  delay = 0;
-  started = 0;
-  for(i = 0; i < midiFile[1].length; i++){
-    if(midiFile[1][i][1]) started = 1;
-    if(started) delay += midiFile[1][i][0]*2;
-    if(midiFile[1][i][1]){
-      console.log("play_note("+midiFile[1][i][2]+")",delay);
-      setTimeout("play_note("+midiFile[1][i][2]+")",delay);
+  started = 1;
+  for(j = 0; j < midiFile.length; j++){
+    delay = 0;
+    for(i = 0; i < midiFile[j].length; i++){
+      if(midiFile[j][i][1]) started = 1;
+      if(started) delay += midiFile[j][i][0];
+      if(midiFile[j][i][1]){
+        //console.log("play_note("+midiFile[1][i][2]+")",delay);
+        play_note(midiFile[j][i][2],delay);
+      }
     }
   }
 }
 
+tempo = 500000;
 
 /*
 class to parse the .mid file format
@@ -91,16 +94,88 @@ function MidiFile(data) {
 	var lastEventTypeByte;
 	
 	function readEvent(stream) {
-		var event = [ stream.readVarInt() ];
+		var event = [];
+		delta = stream.readVarInt(); // time delta (ticks)
+    event.push((delta / ticksPerBeat * tempo * 12e-4) | 0); // time delta (ms)
 		var eventTypeByte = stream.readInt8();
 		if ((eventTypeByte & 0xf0) == 0xf0) {
 			/* system / meta event */
 			if (eventTypeByte == 0xff) {
 				/* meta event */
-				//event.type = 'meta';
 				var subtypeByte = stream.readInt8();
 				var length = stream.readVarInt();
-		  }
+				switch(subtypeByte) {
+					case 0x00:
+            stream.readInt16();
+						return event;
+					case 0x01:
+						stream.read(length);
+						return event;
+					case 0x02:
+						stream.read(length);
+						return event;
+					case 0x03:
+						stream.read(length);
+						return event;
+					case 0x04:
+						 stream.read(length);
+						return event;
+					case 0x05:
+						stream.read(length);
+						return event;
+					case 0x06:
+						stream.read(length);
+						return event;
+					case 0x07:
+						stream.read(length);
+						return event;
+					case 0x20:
+						stream.readInt8();
+						return event;
+					case 0x2f:
+						return event;
+					case 0x51:
+						tempo = (
+							(stream.readInt8() << 16)
+							+ (stream.readInt8() << 8)
+							+ stream.readInt8()
+						)
+						return event;
+					case 0x54:
+						stream.readInt8();
+						stream.readInt8();
+						stream.readInt8();
+						stream.readInt8();
+						stream.readInt8();
+						return event;
+					case 0x58:
+						stream.readInt8();
+						stream.readInt8();
+						stream.readInt8();
+						stream.readInt8();
+						return event;
+					case 0x59:
+						stream.readInt8(true);
+						stream.readInt8();
+						return event;
+					case 0x7f:
+						stream.read(length);
+						return event;
+					default:
+						stream.read(length);
+						return event;
+				}
+				stream.read(length);
+				return event;
+			} else if (eventTypeByte == 0xf0) {
+				var length = stream.readVarInt();
+				stream.read(length);
+				return event;
+			} else if (eventTypeByte == 0xf7) {
+				var length = stream.readVarInt();
+				stream.read(length);
+				return event;
+			}
 		} else {
 			/* channel event */
 			var param1;
@@ -119,46 +194,33 @@ function MidiFile(data) {
 			//event.type = 'channel';
 			switch (eventType) {
 				case 0x08:
-					event.push(0, param1, stream.readInt8() || 0)
+					subtype = 'noteOff';
+					noteNumber = param1;
+					velocity = stream.readInt8();
+          event.push( 0, noteNumber, velocity);
 					return event;
 				case 0x09:
-					var t, v = stream.readInt8();
-					if (v == 0) {
-						t = 0;
+					noteNumber = param1;
+					velocity = stream.readInt8();
+					if (velocity == 0) {
+						subtype = 'noteOff';
 					} else {
-						t = 1;
+						subtype = 'noteOn';
 					}
-					event.push(t, param1, v || 0);
+          event.push( subtype == "noteOn" ? 1 : 0, noteNumber, velocity); 
 					return event;
 				case 0x0a:
-					//event.subtype = 'noteAftertouch';
-					//event.noteNumber = param1;
-					event.amount = stream.readInt8();
-					//return event;
-				case 0x0b:
-					//event.subtype = 'controller';
-					//event.controllerType = param1;
-					event.value = stream.readInt8();
-					//return event;
-				case 0x0c:
-					//event.subtype = 'programChange';
-					//event.programNumber = param1;
-					//return event;
-				case 0x0d:
-					//event.subtype = 'channelAftertouch';
-					//event.amount = param1;
-					//return event;
-				case 0x0e:
-					//event.subtype = 'pitchBend';
-					event.value = param1 + (stream.readInt8() << 7);
-					//return event;
-				default:
-					//throw "Unrecognised MIDI event type: " + eventType
-					/* 
-					console.log("Unrecognised MIDI event type: " + eventType);
 					stream.readInt8();
-					event.subtype = 'unknown';
-					*/
+					return event;
+				case 0x0b:
+					stream.readInt8();
+					return event;
+				case 0x0c:
+					return event;
+				case 0x0d:
+					return event;
+				case 0x0e:
+					stream.readInt8()
 					return event;
 			}
 		}
@@ -166,13 +228,27 @@ function MidiFile(data) {
 	
 	stream = Stream(data);
 	var headerChunk = readChunk(stream);
+	if (headerChunk.id != 'MThd' || headerChunk.length != 6) {
+		throw "Bad .mid file - header not found";
+	}
 	var headerStream = Stream(headerChunk.data);
 	var formatType = headerStream.readInt16();
 	var trackCount = headerStream.readInt16();
 	var timeDivision = headerStream.readInt16();
-  ticksPerBeat = timeDivision;
+	
+	if (timeDivision & 0x8000) {
+		throw "Expressing time division in SMTPE frames is not supported yet"
+	} else {
+		ticksPerBeat = timeDivision;
+	}
+	
+	var header = {
+		'formatType': formatType,
+		'trackCount': trackCount,
+		'ticksPerBeat': ticksPerBeat
+	}
 	var tracks = [];
-	for (var i = 0; i < trackCount; i++) {
+	for (var i = 0; i < header.trackCount; i++) {
 		tracks[i] = [];
 		var trackChunk = readChunk(stream);
 		if (trackChunk.id != 'MTrk') {
@@ -181,7 +257,7 @@ function MidiFile(data) {
 		var trackStream = Stream(trackChunk.data);
 		while (!trackStream.eof()) {
 			var event = readEvent(trackStream);
-			if(event)tracks[i].push(event);
+			tracks[i].push(event);
 			//console.log(event);
 		}
 	}
@@ -280,7 +356,7 @@ loadRemote = (path, callback) => {
 music = file => {
   loadRemote(file, data => {
     midiFile = MidiFile(data);
-    output.value = JSON.stringify(midiFile,null,2);
+    output.value = /*"// tempo: " + tempo + " µs/beat = " + (4 * tempo * 60 / 1000000).toFixed(0) + " beat/min\n// resolution: "+ ticksPerBeat + " ticks/beat\n\n" +*/ JSON.stringify(midiFile.slice(1).map(a=>a.filter(b=>b.length>1||b[0]!=0)),null,0);
   })
 }
 
@@ -288,15 +364,16 @@ music = file => {
 <tt>
 <h2>MiniMidi</h2>
 <br>
-- Extracts the tracks from a MIDI file
-<p>- "noteOn" and "noteOff" events of each track are saved as [delay, type (0:off/1:on), note, volume]
+- Extracts the tracks from a MIDI file (except track 0, reserved for metadata)
+<p>- "noteOn" and "noteOff" events of each track are saved as [delay (ms), type (0:off/1:on), note, volume]
 <p>- Other events are just saved as [delay]
 <br>
 <br>
-<p><input type=file id=f onchange="with(new FileReader)readAsDataURL(files[0]),onload=s=>music(result)"> / Examples: <button onclick="music('1.mid')">1.mid</button> <button onclick="music('2.mid')">2.mid</button> <button onclick="music('3.mid')">3.mid</button>
+<p><input type=file id=f onchange="with(new FileReader)readAsDataURL(files[0]),onload=s=>music(result)">
+<p>Examples: <button onclick="music('1.mid')">1.mid</button> <button onclick="music('2.mid')">2.mid</button> <button onclick="music('3.mid')">3.mid</button>
 <br>
 <br>
-<p><textarea id=output rows=30 cols=80></textarea>
+<p><textarea id=output rows=25 cols=60></textarea>
 <br>
 <br>
 <button onclick="play()">Play</button>
