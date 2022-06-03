@@ -68,7 +68,7 @@ play = (i) => {
       if(started) delay += midiFile[j][i][0];
       if(midiFile[j][i][1]){
         //console.log("play_note("+midiFile[1][i][2]+")",delay);
-        play_note(midiFile[j][i][2],delay);
+        play_note(midiFile[j][i][1],delay*10);
       }
     }
   }
@@ -96,7 +96,7 @@ function MidiFile(data) {
 	function readEvent(stream) {
 		var event = [];
 		delta = stream.readVarInt(); // time delta (ticks)
-    event.push((delta / ticksPerBeat * tempo * 12e-4) | 0); // time delta (ms)
+    event.push((delta / ticksPerBeat * tempo * 12e-4) / 12 | 0); // time delta (ms)
 		var eventTypeByte = stream.readInt8();
 		if ((eventTypeByte & 0xf0) == 0xf0) {
 			/* system / meta event */
@@ -197,7 +197,7 @@ function MidiFile(data) {
 					subtype = 'noteOff';
 					noteNumber = param1;
 					velocity = stream.readInt8();
-          event.push( 0, noteNumber, velocity);
+          //event.push( 0, noteNumber, velocity);
 					return event;
 				case 0x09:
 					noteNumber = param1;
@@ -207,7 +207,7 @@ function MidiFile(data) {
 					} else {
 						subtype = 'noteOn';
 					}
-          event.push( subtype == "noteOn" ? 1 : 0, noteNumber, velocity); 
+          if(subtype == "noteOn") event.push(noteNumber); 
 					return event;
 				case 0x0a:
 					stream.readInt8();
@@ -255,9 +255,17 @@ function MidiFile(data) {
 			throw "Unexpected chunk - expected MTrk, got "+ trackChunk.id;
 		}
 		var trackStream = Stream(trackChunk.data);
+    var off = 0;
 		while (!trackStream.eof()) {
 			var event = readEvent(trackStream);
-			tracks[i].push(event);
+      if(event[1]){
+        event[0]+=off;
+        tracks[i].push(event);
+        off = 0;
+      }
+      else{
+        off += event[0];
+      }
 			//console.log(event);
 		}
 	}
@@ -354,26 +362,40 @@ loadRemote = (path, callback) => {
 }
 
 music = file => {
+  var a;
   loadRemote(file, data => {
     midiFile = MidiFile(data);
-    output.value = /*"// tempo: " + tempo + " µs/beat = " + (4 * tempo * 60 / 1000000).toFixed(0) + " beat/min\n// resolution: "+ ticksPerBeat + " ticks/beat\n\n" +*/ JSON.stringify(midiFile.slice(1).map(a=>a.filter(b=>b.length>1||b[0]!=0)),null,0);
+    output.value = /*"// tempo: " + tempo + " µs/beat = " + (4 * tempo * 60 / 1000000).toFixed(0) + " beat/min\n// resolution: "+ ticksPerBeat + " ticks/beat\n\n" +*/ JSON.stringify(a = midiFile.slice(1).map(a=>a.filter(b=>b.length>1||b[0]!=0)),null,0);
+    for(var i in a){
+      for(j in a[i]){
+        output2.value+=String.fromCodePoint(a[i][j][0]+32);
+        output2.value+=String.fromCodePoint(a[i][j][1]);
+      }
+      output2.value+="\n";
+    }
   })
+  
 }
 
 </script>
 <tt>
 <h2>MiniMidi</h2>
-<br>
-- Extracts the tracks from a MIDI file (except track 0, reserved for metadata)
-<p>- "noteOn" and "noteOff" events of each track are saved as [delay (ms), type (0:off/1:on), note, volume]
-<p>- Other events are just saved as [delay]
+<br>- Parses a MIDI file
+<br>- For each track, the "noteOn" events are saved as [deltaTime, value].
+<br>- deltaTime x 10 is the number of milliseconds since the last event (for the first note, last event is the beginning of the song).
+<br>- All other events are ignored. Note duration and volume are ignored too (uncomment "noteOff" and "velocity" in the code" if you need them).
+
 <br>
 <br>
 <p><input type=file id=f onchange="with(new FileReader)readAsDataURL(files[0]),onload=s=>music(result)">
 <p>Examples: <button onclick="music('1.mid')">1.mid</button> <button onclick="music('2.mid')">2.mid</button> <button onclick="music('3.mid')">3.mid</button>
 <br>
 <br>
-<p><textarea id=output rows=25 cols=60></textarea>
+<p>JSON:<br>
+<textarea id=output rows=10 cols=80></textarea>
+<br>
+<p>ASCII (one line per track):<br>
+<textarea id=output2 rows=10 cols=80></textarea>
 <br>
 <br>
 <button onclick="play()">Play</button>
