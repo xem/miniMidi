@@ -368,13 +368,31 @@ music = file => {
     output.value = /*"// tempo: " + tempo + " µs/beat = " + (4 * tempo * 60 / 1000000).toFixed(0) + " beat/min\n// resolution: "+ ticksPerBeat + " ticks/beat\n\n" +*/ JSON.stringify(a = midiFile.slice(1).map(a=>a.filter(b=>b.length>1||b[0]!=0)),null,0);
     for(var i in a){
       for(j in a[i]){
-        output2.value+=String.fromCodePoint(a[i][j][0]+32);
-        output2.value+=String.fromCodePoint(a[i][j][1]);
+        output2.value+=String.fromCodePoint(a[i][j][0]+32)//.replace("\\","\\\\").replace("'","\\'").replace('"','\\"');
+        output2.value+=String.fromCodePoint(a[i][j][1])//.replace("\\","\\\\").replace("'","\\'").replace('"','\\"');
       }
-      output2.value+="\n";
+      if(i && i < a.length-1) output2.value+="\n";
     }
   })
   
+}
+
+note = (v,o) => {
+  o=A.createOscillator();o.connect(A.destination);
+  console.log(o, v);
+  o.frequency.value=v;o.start(0);setTimeout(()=>{o.stop(0)},200)
+}
+
+
+A=new AudioContext;
+play2=(s,a,i,j,t)=>{
+  a=output2.value.split("\n");
+  for(i in a){
+    for(j=t=0;j<a[i].length;j+=2){
+      t+=(a[i].codePointAt(j)-32)*10;
+      setTimeout("piano("+(440*1.06**(a[i].codePointAt(j+1)-80))+")",t);
+    }
+  }
 }
 
 </script>
@@ -391,11 +409,19 @@ music = file => {
 <p>Examples: <button onclick="music('1.mid')">1.mid</button> <button onclick="music('2.mid')">2.mid</button> <button onclick="music('3.mid')">3.mid</button>
 <br>
 <br>
-<p>JSON:<br>
-<textarea id=output rows=10 cols=80></textarea>
+<p>JSON:
+<p><textarea id=output rows=10 cols=90></textarea>
 <br>
-<p>ASCII (one line per track):<br>
-<textarea id=output2 rows=10 cols=80></textarea>
+<p>ASCII (one line per track<!--, ", ' and \ chars are escaped-->):
+<p>
+<textarea id=output2 rows=10 cols=90></textarea>
 <br>
 <br>
-<button onclick="play()">Play</button>
+<button onclick="play2()">Play</button>
+<p>
+Golfed player (586b with miniPiano):
+<p>
+<textarea rows=10 cols=90>A=new AudioContext;
+piano=e=>{var t,a,n,r,f,o=A.createBuffer(1,1e6,44100);for(1,[],0,t=(e,t,a,n)=>Math.sin(e/t*6.28*a+n),a=(e,a)=>Math.sin(e/44100*a*6.28+t(e,44100,a,0)**2+.75*t(e,44100,a,.25)+.1*t(e,44100,a,.5)),f=[],n=0;n<44100;n++)f[n]=n<88?n/88.2*a(n,e):(1-(n-88.2)/44011.8)**((.5*Math.log(1e4*e/44100))**2)*a(n,e);o.getChannelData(0).set(f),(r=A.createBufferSource()).buffer=o,r.connect(A.destination),r.start()}
+play=(o,t,i,n,e)=>{for(i in t=o.split`\n`)for(n=e=0;n<t[i].length;n+=2)e+=10*(t[i].codePointAt(n)-32),setTimeout("piano("+440*1.06**(t[i].codePointAt(n+1)-80)+")",e)}
+// play(ascii_output);</textarea>
