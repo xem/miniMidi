@@ -5,7 +5,7 @@
 A = new AudioContext;
 
 // Play a piano note
-piano = e => {
+piano = (e, volume = e/10) => {
   var V, v, p, c, b, w, r, D, i, s, u, D, m = A.createBuffer(1, 1e6, 44100);
   
   for(
@@ -38,10 +38,10 @@ piano = e => {
     
       // The first 88 samples represent the note's attack
       i < 88 
-      ? i / 88.2 * w(i, e) 
+      ? i / 88.2 * w(i, e) / volume
       
       // The other samples represent the rest of the note
-      : (1 - (i - 88.2) / (44100 * (V - .002))) ** ((.5 * Math.log(1e4 * e / 44100)) ** 2) * w(i, e);
+      : (1 - (i - 88.2) / (44100 * (V - .002))) ** ((.5 * Math.log(1e4 * e / 44100)) ** 2) * w(i, e) / volume;
   }
   
   // Play the note
@@ -96,7 +96,7 @@ function MidiFile(data) {
 	function readEvent(stream) {
 		var event = [];
 		delta = stream.readVarInt(); // time delta (ticks)
-    event.push((delta / ticksPerBeat * tempo * 12e-4) / 12 | 0); // time delta (ms)
+    event.push((delta / ticksPerBeat * tempo * 12e-3) / 12 | 0); // time delta (ms)
 		var eventTypeByte = stream.readInt8();
 		if ((eventTypeByte & 0xf0) == 0xf0) {
 			/* system / meta event */
@@ -365,13 +365,13 @@ music = file => {
   var a;
   loadRemote(file, data => {
     midiFile = MidiFile(data);
-    output.value = /*"// tempo: " + tempo + " µs/beat = " + (4 * tempo * 60 / 1000000).toFixed(0) + " beat/min\n// resolution: "+ ticksPerBeat + " ticks/beat\n\n" +*/ JSON.stringify(a = midiFile.slice(1).map(a=>a.filter(b=>b.length>1||b[0]!=0)),null,0);
+    output.value = /*"// tempo: " + tempo + " µs/beat = " + (4 * tempo * 60 / 1000000).toFixed(0) + " beat/min\n// resolution: "+ ticksPerBeat + " ticks/beat\n\n" +*/ JSON.stringify(a = midiFile.map(a=>a.filter(b=>b.length>1||b[0]!=0)),null,0);
     for(var i in a){
       for(j in a[i]){
         output2.value+=String.fromCodePoint(a[i][j][0]+32)//.replace("\\","\\\\").replace("'","\\'").replace('"','\\"');
         output2.value+=String.fromCodePoint(a[i][j][1])//.replace("\\","\\\\").replace("'","\\'").replace('"','\\"');
       }
-      if(i && i < a.length-1) output2.value+="\n";
+      if(i < a.length-1) output2.value+="\n";
     }
   })
   
@@ -385,16 +385,49 @@ note = (v,o) => {
 
 
 A=new AudioContext;
+
 play2=(s,a,i,j,t)=>{
   a=output2.value.split("\n");
   for(i in a){
     for(j=t=0;j<a[i].length;j+=2){
-      t+=(a[i].codePointAt(j)-32)*10;
+      t+=(a[i].codePointAt(j)-32);
+      setTimeout("piano("+(440*1.06**(a[i].codePointAt(j+1)-80))+")",t); // +","+(i==2?5:1)+
+    }
+  }
+}
+
+play2_1=(s,a,i,j,t)=>{
+  a=output2.value.split("\n");
+  for(i in a){
+    if(i==1)
+    for(j=t=0;j<a[i].length;j+=2){
+      t+=(a[i].codePointAt(j)-32);
       setTimeout("piano("+(440*1.06**(a[i].codePointAt(j+1)-80))+")",t);
     }
   }
 }
 
+play2_2=(s,a,i,j,t)=>{
+  a=output2.value.split("\n");
+  for(i in a){
+    if(i==2)
+    for(j=t=0;j<a[i].length;j+=2){
+      t+=(a[i].codePointAt(j)-32);
+      setTimeout("piano("+(440*1.06**(a[i].codePointAt(j+1)-80))+")",t);
+    }
+  }
+}
+
+play2_3=(s,a,i,j,t)=>{
+  a=output2.value.split("\n");
+  for(i in a){
+    if(i==3)
+    for(j=t=0;j<a[i].length;j+=2){
+      t+=(a[i].codePointAt(j)-32);
+      setTimeout("piano("+(440*1.06**(a[i].codePointAt(j+1)-80))+")",t);
+    }
+  }
+}
 </script>
 <tt>
 <h2>MiniMidi</h2>
@@ -418,6 +451,9 @@ play2=(s,a,i,j,t)=>{
 <br>
 <br>
 <button onclick="play2()">Play</button>
+<button onclick="play2_1()">Play track 1</button>
+<button onclick="play2_2()">Play track 2</button>
+<button onclick="play2_3()">Play track 3</button>
 <p>
 Golfed player (586b with miniPiano):
 <p>
